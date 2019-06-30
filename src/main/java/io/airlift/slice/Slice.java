@@ -882,6 +882,10 @@ public final class Slice
             return offset;
         }
 
+        if (pattern.length() > size) {
+            return -1;
+        }
+
         // Do we have enough characters
         if (pattern.length() < SIZE_OF_INT || size < SIZE_OF_LONG) {
             return indexOfBruteForce(pattern, offset);
