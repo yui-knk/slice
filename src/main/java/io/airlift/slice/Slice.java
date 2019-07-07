@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 
 import static io.airlift.slice.JvmUtils.bufferAddress;
 import static io.airlift.slice.JvmUtils.unsafe;
@@ -887,38 +888,23 @@ public final class Slice
             return indexOfBruteForce(pattern, offset);
         }
 
-        // Using first four bytes for faster search. We are not using eight bytes for long
-        // because we want more strings to get use of fast search.
-        int head = pattern.getIntUnchecked(0);
-
-        // Take the first byte of head for faster skipping
-        int firstByteMask = head & 0xff;
-        firstByteMask |= firstByteMask << 8;
-        firstByteMask |= firstByteMask << 16;
-
-        int lastValidIndex = size - pattern.length();
+        int[] table = new int[256];
         int index = offset;
-        while (index <= lastValidIndex) {
-            // Read four bytes in sequence
-            int value = getIntUnchecked(index);
+        int n = length();
+        int m = pattern.length();
 
-            // Compare all bytes of value with first byte of search data
-            // see https://graphics.stanford.edu/~seander/bithacks.html#ZeroInWord
-            int valueXor = value ^ firstByteMask;
-            int hasZeroBytes = (valueXor - 0x01010101) & ~valueXor & 0x80808080;
+        Arrays.fill(table, m + 1);
 
-            // If valueXor doesn't not have any zero byte then there is no match and we can advance
-            if (hasZeroBytes == 0) {
-                index += SIZE_OF_INT;
-                continue;
-            }
+        for (int i = 0; i < m; i++) {
+            table[pattern.getByteUnchecked(i)] = m - i;
+        }
 
-            // Try fast match of head and the rest
-            if (value == head && equalsUnchecked(index, pattern, 0, pattern.length())) {
+        while (index <= n - m) {
+            if (equalsUnchecked(index, pattern, 0, m)) {
                 return index;
             }
 
-            index++;
+            index = index + table[getByteUnchecked(index + m)];
         }
 
         return -1;
