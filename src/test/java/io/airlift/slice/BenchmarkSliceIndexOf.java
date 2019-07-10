@@ -20,7 +20,6 @@ import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
-import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -41,7 +40,7 @@ import static io.airlift.slice.Slices.wrappedBuffer;
 @BenchmarkMode(Mode.AverageTime)
 @Fork(5)
 @Warmup(iterations = 5, time = 1000, timeUnit = TimeUnit.MILLISECONDS)
-@Measurement(iterations = 10, time = 1000, timeUnit = TimeUnit.MILLISECONDS)
+@Measurement(iterations = 5, time = 1000, timeUnit = TimeUnit.MILLISECONDS)
 public class BenchmarkSliceIndexOf
 {
     @Benchmark
@@ -51,16 +50,20 @@ public class BenchmarkSliceIndexOf
         return data.data.indexOf(data.needle);
     }
 
+    @Benchmark
+    public Object indexOf2(BenchmarkData data)
+            throws Throwable
+    {
+        return data.data.indexOf2(data.needle);
+    }
+
     @State(Scope.Thread)
     public static class BenchmarkData
     {
-        @Param({"10", "100", "200", "500", "1000", "1500", "10000"})
-        private int length;
+        private int length = 50;
 
-        @Param({"1", "5", "10", "20", "50", "100"})
-        private int needleLength;
+        private int needleLength = 20;
 
-        @Param({"true", "false"})
         private boolean match = true;
 
         private Slice data;

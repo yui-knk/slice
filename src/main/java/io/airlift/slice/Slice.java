@@ -23,7 +23,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.util.Arrays;
 
 import static io.airlift.slice.JvmUtils.bufferAddress;
 import static io.airlift.slice.JvmUtils.unsafe;
@@ -888,12 +887,70 @@ public final class Slice
             return indexOfBruteForce(pattern, offset);
         }
 
+        // Using first four bytes for faster search. We are not using eight bytes for long
+        // because we want more strings to get use of fast search.
+        int head = pattern.getIntUnchecked(0);
+
+        // Take the first byte of head for faster skipping
+        int firstByteMask = head & 0xff;
+        firstByteMask |= firstByteMask << 8;
+        firstByteMask |= firstByteMask << 16;
+
+        int lastValidIndex = size - pattern.length();
+        int index = offset;
+        while (index <= lastValidIndex) {
+            // Read four bytes in sequence
+            int value = getIntUnchecked(index);
+
+            // Compare all bytes of value with first byte of search data
+            // see https://graphics.stanford.edu/~seander/bithacks.html#ZeroInWord
+            int valueXor = value ^ firstByteMask;
+            int hasZeroBytes = (valueXor - 0x01010101) & ~valueXor & 0x80808080;
+
+            // If valueXor doesn't not have any zero byte then there is no match and we can advance
+            if (hasZeroBytes == 0) {
+                index += SIZE_OF_INT;
+                continue;
+            }
+
+            // Try fast match of head and the rest
+            if (value == head && equalsUnchecked(index, pattern, 0, pattern.length())) {
+                return index;
+            }
+
+            index++;
+        }
+
+        return -1;
+    }
+
+    public int indexOf2(Slice slice)
+    {
+        return indexOf2(slice, 0);
+    }
+
+    public int indexOf2(Slice pattern, int offset)
+    {
+        if (size == 0 || offset >= size) {
+            return -1;
+        }
+
+        if (pattern.length() == 0) {
+            return offset;
+        }
+
+        // Do we have enough characters
+        if (pattern.length() < SIZE_OF_INT || size < SIZE_OF_LONG) {
+            return indexOfBruteForce(pattern, offset);
+        }
+
         int[] table = new int[256];
         int index = offset;
         int n = length();
         int m = pattern.length();
-
-        Arrays.fill(table, m + 1);
+        // Using first four bytes for faster search. We are not using eight bytes for long
+        // because we want more strings to get use of fast search.
+        int head = pattern.getIntUnchecked(0);
 
         for (int i = 0; i < m; i++) {
             table[pattern.getByteUnchecked(i)] = m - i;
@@ -904,7 +961,14 @@ public final class Slice
                 return index;
             }
 
-            index = index + table[getByteUnchecked(index + m)];
+            int skip = table[getByteUnchecked(index + m)];
+
+            if (skip == 0) {
+                index = index + (m + 1);
+            }
+            else {
+                index = index + skip;
+            }
         }
 
         return -1;
