@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 
 import static io.airlift.slice.JvmUtils.bufferAddress;
 import static io.airlift.slice.JvmUtils.unsafe;
@@ -948,9 +949,6 @@ public final class Slice
         int index = offset;
         int n = length();
         int m = pattern.length();
-        // Using first four bytes for faster search. We are not using eight bytes for long
-        // because we want more strings to get use of fast search.
-        int head = pattern.getIntUnchecked(0);
 
         for (int i = 0; i < m; i++) {
             table[pattern.getByteUnchecked(i)] = m - i;
@@ -972,6 +970,99 @@ public final class Slice
         }
 
         return -1;
+    }
+
+    public int indexOf2(Slice pattern, int offset, int[] table)
+    {
+        if (size == 0 || offset >= size) {
+            return -1;
+        }
+
+        if (pattern.length() == 0) {
+            return offset;
+        }
+
+        // Do we have enough characters
+        if (pattern.length() < SIZE_OF_INT || size < SIZE_OF_LONG) {
+            return indexOfBruteForce(pattern, offset);
+        }
+
+        int index = offset;
+        int n = length();
+        int m = pattern.length();
+
+        while (index <= n - m) {
+            if (equalsUnchecked(index, pattern, 0, m)) {
+                return index;
+            }
+
+            int skip = table[getByteUnchecked(index + m)];
+
+            if (skip == 0) {
+                index = index + (m + 1);
+            }
+            else {
+                index = index + skip;
+            }
+        }
+
+        return -1;
+    }
+
+    public int indexOf22(Slice pattern, int offset, int[] table)
+    {
+        if (size == 0 || offset >= size) {
+            return -1;
+        }
+
+        if (pattern.length() == 0) {
+            return offset;
+        }
+
+        // Do we have enough characters
+        if (pattern.length() < SIZE_OF_INT || size < SIZE_OF_LONG) {
+            return indexOfBruteForce(pattern, offset);
+        }
+
+        int index = offset;
+        int n = length();
+        int m = pattern.length();
+
+        while (index <= n - m) {
+            if (equalsUnchecked(index, pattern, 0, m)) {
+                return index;
+            }
+
+            index = index + table[getByteUnchecked(index + m)];
+        }
+
+        return -1;
+    }
+
+    static int[] buildIndexOf2Table(Slice pattern)
+    {
+        int[] table = new int[256];
+        int m = pattern.length();
+
+        for (int i = 0; i < m; i++) {
+            table[pattern.getByteUnchecked(i)] = m - i;
+        }
+
+        return table;
+    }
+
+    static int[] buildIndexOf22Table(Slice pattern)
+    {
+        int[] table = new int[256];
+        int m = pattern.length();
+
+        Arrays.fill(table, m + 1);
+
+        for (int i = 0; i < m; i++) {
+            table[pattern.getByteUnchecked(i)] = m - i;
+        }
+
+        return table;
     }
 
     int indexOfBruteForce(Slice pattern, int offset)

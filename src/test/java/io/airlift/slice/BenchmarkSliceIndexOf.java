@@ -50,11 +50,25 @@ public class BenchmarkSliceIndexOf
         return data.data.indexOf(data.needle);
     }
 
+//    @Benchmark
+//    public Object indexOf2(BenchmarkData data)
+//            throws Throwable
+//    {
+//        return data.data.indexOf2(data.needle);
+//    }
+//
+//    @Benchmark
+//    public Object indexOf2PreCalcuTable(BenchmarkData data)
+//            throws Throwable
+//    {
+//        return data.data.indexOf2(data.needle, 0, data.table);
+//    }
+
     @Benchmark
-    public Object indexOf2(BenchmarkData data)
+    public Object indexOf2PreCalcuTable2(BenchmarkData data)
             throws Throwable
     {
-        return data.data.indexOf2(data.needle);
+        return data.data.indexOf22(data.needle, 0, data.table2);
     }
 
     @State(Scope.Thread)
@@ -65,6 +79,9 @@ public class BenchmarkSliceIndexOf
         private int needleLength = 20;
 
         private boolean match = true;
+
+        private int[] table;
+        private int[] table2;
 
         private Slice data;
         private Slice needle;
@@ -79,6 +96,8 @@ public class BenchmarkSliceIndexOf
             if (match) {
                 data.setBytes(data.length() - needle.length(), needle);
             }
+            table = Slice.buildIndexOf2Table(needle);
+            table2 = Slice.buildIndexOf22Table(needle);
         }
     }
 
